@@ -107,7 +107,16 @@ func (p *Pipeline) createGraphicsPipeline(vertexCompiled, fragmentCompiled strin
 
 	shaderStages := []vk.PipelineShaderStageCreateInfo{vertShaderStageInfo, fragShaderStageInfo}
 
+	v := Vertex{}
+	bindingDescriptions := v.getBindingDescription()
+	attributeDescriptions := v.getAttributeDescriptions()
 	vertexInputInfo := vk.PipelineVertexInputStateCreateInfo{}
+
+	vertexInputInfo.PVertexBindingDescriptions = []vk.VertexInputBindingDescription{
+		bindingDescriptions,
+	}
+	vertexInputInfo.PVertexAttributeDescriptions = attributeDescriptions[:]
+
 	inputAssembly := vk.PipelineInputAssemblyStateCreateInfo{
 		Topology:               vk.PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 		PrimitiveRestartEnable: false,

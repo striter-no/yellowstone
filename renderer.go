@@ -15,6 +15,8 @@ type Renderer struct {
 	Pipeline  *Pipeline
 	Device    *VulkanDevice
 
+	Vbuffer VertexBuffer
+
 	// -- private
 	commandPool         vk.CommandPool
 	framebuffers        []vk.Framebuffer
@@ -87,8 +89,6 @@ func (r *Renderer) recordCommandBuffer(
 	}
 
 	vk.CmdBeginRenderPass(cb, &renderPassInfo, vk.SUBPASS_CONTENTS_INLINE)
-	vk.CmdBindPipeline(cb, vk.PIPELINE_BIND_POINT_GRAPHICS, r.Pipeline.handle)
-
 	viewport := vk.Viewport{
 		X: 0, Y: 0,
 		Width:    float32(r.SwapChain.extent.Width),
@@ -97,15 +97,21 @@ func (r *Renderer) recordCommandBuffer(
 		MaxDepth: 1,
 	}
 
-	vk.CmdSetViewport(cb, 0, []vk.Viewport{viewport})
-
 	scissor := vk.Rect2D{
 		Offset: vk.Offset2D{},
 		Extent: r.SwapChain.extent,
 	}
 
+	vk.CmdSetViewport(cb, 0, []vk.Viewport{viewport})
 	vk.CmdSetScissor(cb, 0, []vk.Rect2D{scissor})
-	vk.CmdDraw(cb, 3, 1, 0, 0)
+
+	vk.CmdBindPipeline(cb, vk.PIPELINE_BIND_POINT_GRAPHICS, r.Pipeline.handle)
+
+	vBuffers := []vk.Buffer{r.Vbuffer.buffer}
+	offsets := []vk.DeviceSize{0}
+	vk.CmdBindVertexBuffers(cb, 0, vBuffers, offsets)
+
+	vk.CmdDraw(cb, uint32(len(r.Vbuffer.data)), 1, 0, 0)
 
 	vk.CmdEndRenderPass(cb)
 

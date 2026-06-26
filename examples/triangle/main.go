@@ -3,10 +3,19 @@ package main
 import (
 	"log"
 
+	"github.com/go-gl/mathgl/mgl32"
 	yst "github.com/striter-no/yellowstone"
 )
 
 func main() {
+	// -- data setup
+	verts := []yst.Vertex{
+		{Pos: mgl32.Vec2{0, -0.5}, Color: mgl32.Vec3{1, 0, 1}},
+		{Pos: mgl32.Vec2{0.5, 0.5}, Color: mgl32.Vec3{0, 1, 0}},
+		{Pos: mgl32.Vec2{-0.5, 0.5}, Color: mgl32.Vec3{0, 0, 1}},
+	}
+
+	// -- rendering
 	app := yst.AppInfo{
 		Name:          "Yellowstone app",
 		EngineName:    "Yellowstone",
@@ -27,6 +36,16 @@ func main() {
 		EnableValidation: true,
 	}
 
+	check(window.SetupWindow())
+	defer window.Destroy()
+
+	check(vdev.SetupVulkanDevice(app))
+	defer vdev.Destroy()
+
+	buf, err := yst.NewVertexBuffer(verts, vdev)
+	check(err)
+	defer buf.Destroy()
+
 	swapchain := &yst.Swapchain{
 		Device: vdev,
 		VSync:  true,
@@ -40,13 +59,8 @@ func main() {
 		SwapChain: swapchain,
 		Pipeline:  pipeline,
 		Device:    vdev,
+		Vbuffer:   *buf,
 	}
-
-	check(window.SetupWindow())
-	defer window.Destroy()
-
-	check(vdev.SetupVulkanDevice(app))
-	defer vdev.Destroy()
 
 	check(swapchain.SetupSwapchain(window))
 	defer swapchain.Destroy()
