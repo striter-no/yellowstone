@@ -16,9 +16,10 @@ func main() {
 	}
 
 	window := &yst.Window{
-		Width:  800,
-		Height: 600,
-		Title:  "Yellowstone test",
+		Width:     800,
+		Height:    600,
+		Title:     "Yellowstone test",
+		Resizable: true,
 	}
 
 	vdev := &yst.VulkanDevice{
@@ -28,6 +29,7 @@ func main() {
 
 	swapchain := &yst.Swapchain{
 		Device: vdev,
+		VSync:  true,
 	}
 
 	pipeline := &yst.Pipeline{

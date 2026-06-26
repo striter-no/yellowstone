@@ -9,6 +9,7 @@ import (
 
 type Swapchain struct {
 	Device *VulkanDevice
+	VSync  bool
 
 	handle      vk.SwapchainKHR
 	images      []vk.Image
@@ -21,7 +22,7 @@ func (s *Swapchain) SetupSwapchain(window *Window) error {
 	dets := QuerySwapChainSupport(s.Device.physical, window.surface)
 
 	format := s.chooseSwapSurfaceFormat(dets.formats)
-	presentMode := s.chooseSwapPresentMode(dets.presentModes)
+	presentMode := s.chooseSwapPresentMode(dets.presentModes, s.VSync)
 	extent := s.chooseSwapExtent(dets.caps, window)
 
 	imageCount := dets.caps.MinImageCount + 1
@@ -123,7 +124,11 @@ func (s *Swapchain) chooseSwapSurfaceFormat(availableFormats []vk.SurfaceFormatK
 	return availableFormats[0]
 }
 
-func (s *Swapchain) chooseSwapPresentMode(availablePresentModes []vk.PresentModeKHR) vk.PresentModeKHR {
+func (s *Swapchain) chooseSwapPresentMode(availablePresentModes []vk.PresentModeKHR, preferVSync bool) vk.PresentModeKHR {
+	if preferVSync {
+		return vk.PRESENT_MODE_FIFO_KHR
+	}
+
 	for _, m := range availablePresentModes {
 		if m == vk.PRESENT_MODE_MAILBOX_KHR {
 			return m
@@ -154,8 +159,12 @@ func (s *Swapchain) Destroy() {
 	for _, view := range s.imageViews {
 		vk.DestroyImageView(s.Device.logical, view, nil)
 	}
+	s.imageViews = nil
 
-	vk.DestroySwapchainKHR(s.Device.logical, s.handle, nil)
+	if s.handle != vk.SwapchainKHR(vk.NULL_HANDLE) {
+		vk.DestroySwapchainKHR(s.Device.logical, s.handle, nil)
+		s.handle = vk.SwapchainKHR(vk.NULL_HANDLE)
+	}
 }
 
 // utility ---
