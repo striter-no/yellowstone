@@ -16,6 +16,7 @@ type Renderer struct {
 	Device    *VulkanDevice
 
 	Vbuffer VertexBuffer
+	Ibuffer IndexBuffer
 
 	// -- private
 	commandPool         vk.CommandPool
@@ -110,8 +111,9 @@ func (r *Renderer) recordCommandBuffer(
 	vBuffers := []vk.Buffer{r.Vbuffer.buffer}
 	offsets := []vk.DeviceSize{0}
 	vk.CmdBindVertexBuffers(cb, 0, vBuffers, offsets)
+	vk.CmdBindIndexBuffer(cb, r.Ibuffer.buffer, 0, vk.INDEX_TYPE_UINT16)
 
-	vk.CmdDraw(cb, uint32(len(r.Vbuffer.data)), 1, 0, 0)
+	vk.CmdDrawIndexed(cb, uint32(len(r.Ibuffer.indices)), 1, 0, 0, 0)
 
 	vk.CmdEndRenderPass(cb)
 

@@ -10,10 +10,13 @@ import (
 func main() {
 	// -- data setup
 	verts := []yst.Vertex{
-		{Pos: mgl32.Vec2{0, -0.5}, Color: mgl32.Vec3{1, 0, 1}},
-		{Pos: mgl32.Vec2{0.5, 0.5}, Color: mgl32.Vec3{0, 1, 0}},
-		{Pos: mgl32.Vec2{-0.5, 0.5}, Color: mgl32.Vec3{0, 0, 1}},
+		{Pos: mgl32.Vec2{-0.5, -0.5}, Color: mgl32.Vec3{1, 0, 0}},
+		{Pos: mgl32.Vec2{0.5, -0.5}, Color: mgl32.Vec3{0, 1, 0}},
+		{Pos: mgl32.Vec2{0.5, 0.5}, Color: mgl32.Vec3{0, 0, 1}},
+		{Pos: mgl32.Vec2{-0.5, 0.5}, Color: mgl32.Vec3{1, 1, 1}},
 	}
+
+	indices := []uint16{0, 1, 2, 2, 3, 0}
 
 	// -- rendering
 	app := yst.AppInfo{
@@ -36,16 +39,6 @@ func main() {
 		EnableValidation: true,
 	}
 
-	check(window.SetupWindow())
-	defer window.Destroy()
-
-	check(vdev.SetupVulkanDevice(app))
-	defer vdev.Destroy()
-
-	buf, err := yst.NewVertexBuffer(verts, vdev)
-	check(err)
-	defer buf.Destroy()
-
 	swapchain := &yst.Swapchain{
 		Device: vdev,
 		VSync:  true,
@@ -59,8 +52,13 @@ func main() {
 		SwapChain: swapchain,
 		Pipeline:  pipeline,
 		Device:    vdev,
-		Vbuffer:   *buf,
 	}
+
+	check(window.SetupWindow())
+	defer window.Destroy()
+
+	check(vdev.SetupVulkanDevice(app))
+	defer vdev.Destroy()
 
 	check(swapchain.SetupSwapchain(window))
 	defer swapchain.Destroy()
@@ -70,6 +68,17 @@ func main() {
 
 	check(renderer.SetupRenderer(window))
 	defer renderer.Destroy()
+
+	vbuf, err := yst.NewVertexBuffer(verts, renderer)
+	check(err)
+	defer vbuf.Destroy()
+
+	ibuf, err := yst.NewIndexBuffer(indices, renderer)
+	check(err)
+	defer ibuf.Destroy()
+
+	renderer.Vbuffer = *vbuf
+	renderer.Ibuffer = *ibuf
 
 	for window.IsOpen() {
 		if err := renderer.DrawFrame(); err != nil {

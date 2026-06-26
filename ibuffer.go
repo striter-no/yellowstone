@@ -7,15 +7,15 @@ import (
 	"github.com/bbredesen/go-vk"
 )
 
-type VertexBuffer struct {
-	data   []Vertex
-	buffer vk.Buffer
-	memory vk.DeviceMemory
+type IndexBuffer struct {
+	indices []uint16
+	buffer  vk.Buffer
+	memory  vk.DeviceMemory
 
 	dev *VulkanDevice
 }
 
-func NewVertexBuffer(data []Vertex, renderer *Renderer) (*VertexBuffer, error) {
+func NewIndexBuffer(data []uint16, renderer *Renderer) (*IndexBuffer, error) {
 	dataBytesN := uint64(unsafe.Sizeof(data[0])) * uint64(len(data))
 
 	stagingBuf, stagingBufMem, err := createBuffer(
@@ -34,35 +34,35 @@ func NewVertexBuffer(data []Vertex, renderer *Renderer) (*VertexBuffer, error) {
 	}
 
 	mappedMemory := unsafe.Slice(pdata, dataBytesN)
-	vertexDataPtr := (*byte)(unsafe.Pointer(&data[0]))
-	sourceData := unsafe.Slice(vertexDataPtr, dataBytesN)
+	indexDataPtr := (*byte)(unsafe.Pointer(&data[0]))
+	sourceData := unsafe.Slice(indexDataPtr, dataBytesN)
 
 	copy(mappedMemory, sourceData)
 
 	vk.UnmapMemory(renderer.Device.logical, stagingBufMem)
 
-	vertexBuffer, vertexBufMem, err := createBuffer(
+	indexBuffer, indexBufMem, err := createBuffer(
 		vk.DeviceSize(dataBytesN),
-		vk.BUFFER_USAGE_TRANSFER_DST_BIT|vk.BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		vk.BUFFER_USAGE_TRANSFER_DST_BIT|vk.BUFFER_USAGE_INDEX_BUFFER_BIT,
 		vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		renderer.Device,
 	)
-	if err := copyBuffer(stagingBuf, vertexBuffer, vk.DeviceSize(dataBytesN), renderer.Device, renderer.commandPool); err != nil {
+	if err := copyBuffer(stagingBuf, indexBuffer, vk.DeviceSize(dataBytesN), renderer.Device, renderer.commandPool); err != nil {
 		return nil, err
 	}
 
 	vk.DestroyBuffer(renderer.Device.logical, stagingBuf, nil)
 	vk.FreeMemory(renderer.Device.logical, stagingBufMem, nil)
 
-	return &VertexBuffer{
-		data:   data,
-		buffer: vertexBuffer,
-		memory: vertexBufMem,
-		dev:    renderer.Device,
+	return &IndexBuffer{
+		indices: data,
+		buffer:  indexBuffer,
+		memory:  indexBufMem,
+		dev:     renderer.Device,
 	}, nil
 }
 
-func (vb *VertexBuffer) Destroy() {
-	vk.DestroyBuffer(vb.dev.logical, vb.buffer, nil)
-	vk.FreeMemory(vb.dev.logical, vb.memory, nil)
+func (ib *IndexBuffer) Destroy() {
+	vk.DestroyBuffer(ib.dev.logical, ib.buffer, nil)
+	vk.FreeMemory(ib.dev.logical, ib.memory, nil)
 }
