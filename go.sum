@@ -1,0 +1,6 @@
+github.com/bbredesen/go-vk v1.3.290-0.3.3 h1:p3PLUXaTLAMfjGmFINWG+WkD7gDumOhDr7Sg1IPnAZg=
+github.com/bbredesen/go-vk v1.3.290-0.3.3/go.mod h1:6A3vfmSTrcgXEnBSP2JOw4jR3Wy/ZnGeIf0LPdQE7As=
+github.com/go-gl/glfw/v3.3/glfw v0.0.0-20260406072232-3ac4aa2bb164 h1:ddtotcEXIT7dFhSeXIWjK8YMFYl5bB2NdYQwgv6Uqjk=
+github.com/go-gl/glfw/v3.3/glfw v0.0.0-20260406072232-3ac4aa2bb164/go.mod h1:SyRD8YfuKk+ZXlDqYiqe1qMSqjNgtHzBTG810KUagMc=
+golang.org/x/sys v0.37.0 h1:fdNQudmxPjkdUTPnLn5mdQv7Zwvbvpaxqs831goi9kQ=
+golang.org/x/sys v0.37.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
