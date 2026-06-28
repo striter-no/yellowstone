@@ -84,26 +84,31 @@ func (s *Swapchain) SetupSwapchain(window *Window) error {
 func (s *Swapchain) createImageViews(logicalDev vk.Device) error {
 	s.imageViews = make([]vk.ImageView, len(s.images))
 	for i := range len(s.images) {
-		createInfo := vk.ImageViewCreateInfo{
-			Image:    s.images[i],
-			ViewType: vk.IMAGE_VIEW_TYPE_2D,
-			Format:   s.imageFormat,
-			Components: vk.ComponentMapping{
-				R: vk.COMPONENT_SWIZZLE_IDENTITY,
-				G: vk.COMPONENT_SWIZZLE_IDENTITY,
-				B: vk.COMPONENT_SWIZZLE_IDENTITY,
-				A: vk.COMPONENT_SWIZZLE_IDENTITY,
-			},
-			SubresourceRange: vk.ImageSubresourceRange{
-				AspectMask:     vk.IMAGE_ASPECT_COLOR_BIT,
-				BaseMipLevel:   0,
-				LevelCount:     1,
-				BaseArrayLayer: 0,
-				LayerCount:     1,
-			},
-		}
+		// createInfo := vk.ImageViewCreateInfo{
+		// 	Image:    s.images[i],
+		// 	ViewType: vk.IMAGE_VIEW_TYPE_2D,
+		// 	Format:   s.imageFormat,
+		// 	Components: vk.ComponentMapping{
+		// 		R: vk.COMPONENT_SWIZZLE_IDENTITY,
+		// 		G: vk.COMPONENT_SWIZZLE_IDENTITY,
+		// 		B: vk.COMPONENT_SWIZZLE_IDENTITY,
+		// 		A: vk.COMPONENT_SWIZZLE_IDENTITY,
+		// 	},
+		// 	SubresourceRange: vk.ImageSubresourceRange{
+		// 		AspectMask:     vk.IMAGE_ASPECT_COLOR_BIT,
+		// 		BaseMipLevel:   0,
+		// 		LevelCount:     1,
+		// 		BaseArrayLayer: 0,
+		// 		LayerCount:     1,
+		// 	},
+		// }
 
-		view, err := vk.CreateImageView(logicalDev, &createInfo, nil)
+		// view, err := vk.CreateImageView(logicalDev, &createInfo, nil)
+		// if err != nil {
+		// 	return err
+		// }
+
+		view, err := createImageView(s.images[i], s.imageFormat, s.Device)
 		if err != nil {
 			return err
 		}

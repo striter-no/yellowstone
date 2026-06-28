@@ -85,8 +85,17 @@ func (p *Pipeline) createDescriptorSetLayout() error {
 		StageFlags:      vk.SHADER_STAGE_VERTEX_BIT,
 	}
 
+	samplerLayoutBinding := vk.DescriptorSetLayoutBinding{
+		Binding:         1,
+		DescriptorCount: 1,
+		DescriptorType:  vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		StageFlags:      vk.SHADER_STAGE_FRAGMENT_BIT,
+	}
+
 	layoutInfo := vk.DescriptorSetLayoutCreateInfo{
-		PBindings: []vk.DescriptorSetLayoutBinding{uboLayoutBinding},
+		PBindings: []vk.DescriptorSetLayoutBinding{
+			uboLayoutBinding, samplerLayoutBinding,
+		},
 	}
 
 	lay, err := vk.CreateDescriptorSetLayout(p.Device.logical, &layoutInfo, nil)
@@ -141,7 +150,7 @@ func (p *Pipeline) createGraphicsPipeline(vertexCompiled, fragmentCompiled strin
 	vertexInputInfo.PVertexBindingDescriptions = []vk.VertexInputBindingDescription{
 		bindingDescriptions,
 	}
-	vertexInputInfo.PVertexAttributeDescriptions = attributeDescriptions[:]
+	vertexInputInfo.PVertexAttributeDescriptions = attributeDescriptions
 
 	inputAssembly := vk.PipelineInputAssemblyStateCreateInfo{
 		Topology:               vk.PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,

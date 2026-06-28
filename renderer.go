@@ -13,6 +13,7 @@ import (
 const MaxFramesInFlight = 2
 
 type Renderer struct {
+	Sampler   *TextureSampler
 	SwapChain *Swapchain
 	Pipeline  *Pipeline
 	Device    *VulkanDevice
@@ -20,6 +21,8 @@ type Renderer struct {
 	Vbuffer  VertexBuffer
 	Ibuffer  IndexBuffer
 	Ubuffers [MaxFramesInFlight]UniformBuffer
+
+	Texture Texture
 
 	// -- private
 	commandPool         vk.CommandPool
@@ -37,14 +40,6 @@ type Renderer struct {
 }
 
 func (r *Renderer) SetupRenderer(w *Window) error {
-	if err := r.createDescriptorPool(); err != nil {
-		return fmt.Errorf("Failed to create descriptor pool: %w", err)
-	}
-
-	if err := r.createDescriptorSets(); err != nil {
-		return fmt.Errorf("Failed to create descriptor sets: %w", err)
-	}
-
 	if err := r.createFramebuffers(); err != nil {
 		return fmt.Errorf("Failed to create framebuffers: %w", err)
 	}
@@ -72,6 +67,17 @@ func (r *Renderer) SetupRenderer(w *Window) error {
 			r.fbResized = true
 		},
 	)
+	return nil
+}
+
+func (r *Renderer) SetupDescriptors() error {
+	if err := r.createDescriptorPool(); err != nil {
+		return fmt.Errorf("Failed to create descriptor pool: %w", err)
+	}
+
+	if err := r.createDescriptorSets(); err != nil {
+		return fmt.Errorf("Failed to create descriptor sets: %w", err)
+	}
 	return nil
 }
 
@@ -205,13 +211,19 @@ func (r *Renderer) createSyncObjects() error {
 }
 
 func (r *Renderer) createDescriptorPool() error {
-	poolSize := vk.DescriptorPoolSize{
-		Typ:             vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		DescriptorCount: MaxFramesInFlight,
+	poolSizes := []vk.DescriptorPoolSize{
+		{
+			Typ:             vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			DescriptorCount: MaxFramesInFlight,
+		},
+		{
+			Typ:             vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			DescriptorCount: MaxFramesInFlight,
+		},
 	}
 
 	poolInfo := vk.DescriptorPoolCreateInfo{
-		PPoolSizes: []vk.DescriptorPoolSize{poolSize},
+		PPoolSizes: poolSizes,
 		MaxSets:    MaxFramesInFlight,
 	}
 
@@ -249,15 +261,30 @@ func (r *Renderer) createDescriptorSets() error {
 			Rang:   vk.DeviceSize(unsafe.Sizeof(UniformBufferObject{})),
 		}
 
-		descriptorWrite := vk.WriteDescriptorSet{
-			DstSet:          r.descriptorSets[i],
-			DstBinding:      0,
-			DstArrayElement: 0,
-			DescriptorType:  vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			PBufferInfo:     []vk.DescriptorBufferInfo{bufferInfo},
+		imageInfo := vk.DescriptorImageInfo{
+			Sampler:     r.Sampler.sampler,
+			ImageView:   r.Texture.View,
+			ImageLayout: vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		}
 
-		vk.UpdateDescriptorSets(r.Device.logical, []vk.WriteDescriptorSet{descriptorWrite}, nil)
+		descriptorWrites := []vk.WriteDescriptorSet{
+			{
+				DstSet:          r.descriptorSets[i],
+				DstBinding:      0,
+				DstArrayElement: 0,
+				DescriptorType:  vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				PBufferInfo:     []vk.DescriptorBufferInfo{bufferInfo},
+			},
+			{
+				DstSet:          r.descriptorSets[i],
+				DstBinding:      1,
+				DstArrayElement: 0,
+				DescriptorType:  vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				PImageInfo:      []vk.DescriptorImageInfo{imageInfo},
+			},
+		}
+
+		vk.UpdateDescriptorSets(r.Device.logical, descriptorWrites, nil)
 	}
 
 	return nil

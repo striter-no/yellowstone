@@ -25,22 +25,8 @@ func findMemoryType(
 func copyBuffer(
 	src, dst vk.Buffer, size vk.DeviceSize, vd *VulkanDevice, commandPool vk.CommandPool,
 ) error {
-	allocInfo := vk.CommandBufferAllocateInfo{
-		Level:              vk.COMMAND_BUFFER_LEVEL_PRIMARY,
-		CommandPool:        commandPool,
-		CommandBufferCount: 1,
-	}
-
-	cbs, err := vk.AllocateCommandBuffers(vd.logical, &allocInfo)
+	cb, err := beginSingleTimeCommands(commandPool, vd)
 	if err != nil {
-		return err
-	}
-
-	beginInfo := vk.CommandBufferBeginInfo{
-		Flags: vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-	}
-
-	if err := vk.BeginCommandBuffer(cbs[0], &beginInfo); err != nil {
 		return err
 	}
 
@@ -50,22 +36,12 @@ func copyBuffer(
 		Size:      size,
 	}
 
-	vk.CmdCopyBuffer(cbs[0], src, dst, []vk.BufferCopy{copyRegion})
-	vk.EndCommandBuffer(cbs[0])
+	vk.CmdCopyBuffer(cb, src, dst, []vk.BufferCopy{copyRegion})
 
-	submitInfo := vk.SubmitInfo{
-		PCommandBuffers: cbs,
-	}
-
-	if err := vk.QueueSubmit(vd.graphicsQueue, []vk.SubmitInfo{submitInfo}, vk.Fence(vk.NULL_HANDLE)); err != nil {
+	if err := endSingleTimeCommands(cb, commandPool, vd); err != nil {
 		return err
 	}
 
-	if err := vk.QueueWaitIdle(vd.graphicsQueue); err != nil {
-		return err
-	}
-
-	vk.FreeCommandBuffers(vd.logical, commandPool, cbs)
 	return nil
 }
 
@@ -114,4 +90,48 @@ func createBuffer(
 	}
 
 	return buffer, bufmem, nil
+}
+
+func beginSingleTimeCommands(commandPool vk.CommandPool, dev *VulkanDevice) (vk.CommandBuffer, error) {
+	allocInfo := vk.CommandBufferAllocateInfo{
+		Level:              vk.COMMAND_BUFFER_LEVEL_PRIMARY,
+		CommandPool:        commandPool,
+		CommandBufferCount: 1,
+	}
+
+	cbs, err := vk.AllocateCommandBuffers(dev.logical, &allocInfo)
+	if err != nil {
+		return 0, err
+	}
+
+	beginInfo := vk.CommandBufferBeginInfo{
+		Flags: vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+	}
+
+	if err := vk.BeginCommandBuffer(cbs[0], &beginInfo); err != nil {
+		return 0, err
+	}
+
+	return cbs[0], nil
+}
+
+func endSingleTimeCommands(cb vk.CommandBuffer, cpool vk.CommandPool, dev *VulkanDevice) error {
+	if err := vk.EndCommandBuffer(cb); err != nil {
+		return err
+	}
+
+	sinfo := vk.SubmitInfo{
+		PCommandBuffers: []vk.CommandBuffer{cb},
+	}
+
+	if err := vk.QueueSubmit(dev.graphicsQueue, []vk.SubmitInfo{sinfo}, 0); err != nil {
+		return err
+	}
+
+	if err := vk.QueueWaitIdle(dev.graphicsQueue); err != nil {
+		return err
+	}
+
+	vk.FreeCommandBuffers(dev.logical, cpool, []vk.CommandBuffer{cb})
+	return nil
 }

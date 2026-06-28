@@ -124,7 +124,9 @@ func (d *VulkanDevice) createLogicalDevice(neededExtensions []string, surface vk
 		queueCreateInfos = append(queueCreateInfos, queueCreateInfo)
 	}
 
-	deviceFeatures := vk.PhysicalDeviceFeatures{}
+	deviceFeatures := vk.PhysicalDeviceFeatures{
+		SamplerAnisotropy: true,
+	}
 
 	features12 := vk.PhysicalDeviceVulkan12Features{
 		ScalarBlockLayout: true,
@@ -187,7 +189,9 @@ func (d *VulkanDevice) isDeviceSuitable(dev vk.PhysicalDevice, neededExtensions 
 		swapchainAdequate = len(dets.formats) != 0 && len(dets.presentModes) != 0
 	}
 
-	return indices.IsComplete() && extensionsSupported && swapchainAdequate
+	feats := vk.GetPhysicalDeviceFeatures(dev)
+
+	return indices.IsComplete() && extensionsSupported && swapchainAdequate && feats.SamplerAnisotropy
 }
 
 func (d *VulkanDevice) checkDeviceExtensionSupport(neededDeviceExtensions []string, dev vk.PhysicalDevice) bool {
