@@ -6,6 +6,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/bbredesen/go-vk"
 	"github.com/striter-no/yellowstone/internal"
@@ -125,11 +126,16 @@ func (d *VulkanDevice) createLogicalDevice(neededExtensions []string, surface vk
 
 	deviceFeatures := vk.PhysicalDeviceFeatures{}
 
+	features12 := vk.PhysicalDeviceVulkan12Features{
+		ScalarBlockLayout: true,
+	}
+
 	createInfo := vk.DeviceCreateInfo{
 		PQueueCreateInfos:       queueCreateInfos,
 		PEnabledFeatures:        &deviceFeatures,
 		PpEnabledLayerNames:     layerNames,
 		PpEnabledExtensionNames: neededExtensions,
+		PNext:                   unsafe.Pointer(features12.Vulkanize()),
 	}
 
 	dev, err := vk.CreateDevice(d.physical, &createInfo, nil)

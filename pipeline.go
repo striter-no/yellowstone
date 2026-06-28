@@ -5,9 +5,10 @@ import (
 )
 
 type Pipeline struct {
-	renderPass vk.RenderPass
-	layout     vk.PipelineLayout
-	handle     vk.Pipeline
+	renderPass  vk.RenderPass
+	descrLayout vk.DescriptorSetLayout
+	layout      vk.PipelineLayout
+	handle      vk.Pipeline
 
 	Device *VulkanDevice
 }
@@ -18,6 +19,10 @@ func (p *Pipeline) SetupPipeline(
 	swapchain *Swapchain,
 ) error {
 	if err := p.createRenderPass(swapchain.imageFormat, p.Device.logical); err != nil {
+		return err
+	}
+
+	if err := p.createDescriptorSetLayout(); err != nil {
 		return err
 	}
 
@@ -69,6 +74,27 @@ func (p *Pipeline) createRenderPass(imgLayout vk.Format, logicalDev vk.Device) e
 	}
 
 	p.renderPass = renderPass
+	return nil
+}
+
+func (p *Pipeline) createDescriptorSetLayout() error {
+	uboLayoutBinding := vk.DescriptorSetLayoutBinding{
+		Binding:         0,
+		DescriptorType:  vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		DescriptorCount: 1,
+		StageFlags:      vk.SHADER_STAGE_VERTEX_BIT,
+	}
+
+	layoutInfo := vk.DescriptorSetLayoutCreateInfo{
+		PBindings: []vk.DescriptorSetLayoutBinding{uboLayoutBinding},
+	}
+
+	lay, err := vk.CreateDescriptorSetLayout(p.Device.logical, &layoutInfo, nil)
+	if err != nil {
+		return err
+	}
+
+	p.descrLayout = lay
 	return nil
 }
 
@@ -155,7 +181,7 @@ func (p *Pipeline) createGraphicsPipeline(vertexCompiled, fragmentCompiled strin
 		RasterizerDiscardEnable: false,
 		PolygonMode:             vk.POLYGON_MODE_FILL,
 		CullMode:                vk.CULL_MODE_BACK_BIT,
-		FrontFace:               vk.FRONT_FACE_CLOCKWISE,
+		FrontFace:               vk.FRONT_FACE_COUNTER_CLOCKWISE,
 		DepthBiasEnable:         false,
 		DepthBiasConstantFactor: 0.0,
 		DepthBiasClamp:          0.0,
@@ -184,7 +210,9 @@ func (p *Pipeline) createGraphicsPipeline(vertexCompiled, fragmentCompiled strin
 		BlendConstants: [4]float32{0, 0, 0, 0},
 	}
 
-	pipelineLayoutInfo := vk.PipelineLayoutCreateInfo{}
+	pipelineLayoutInfo := vk.PipelineLayoutCreateInfo{
+		PSetLayouts: []vk.DescriptorSetLayout{p.descrLayout},
+	}
 	pipelineLayout, err := vk.CreatePipelineLayout(logicalDev, &pipelineLayoutInfo, nil)
 	if err != nil {
 		return err
@@ -227,6 +255,7 @@ func (p *Pipeline) createGraphicsPipeline(vertexCompiled, fragmentCompiled strin
 }
 
 func (p *Pipeline) Destroy() {
+	vk.DestroyDescriptorSetLayout(p.Device.logical, p.descrLayout, nil)
 	vk.DestroyPipeline(p.Device.logical, p.handle, nil)
 	vk.DestroyPipelineLayout(p.Device.logical, p.layout, nil)
 	vk.DestroyRenderPass(p.Device.logical, p.renderPass, nil)

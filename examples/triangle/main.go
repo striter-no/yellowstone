@@ -66,6 +66,18 @@ func main() {
 	check(pipeline.SetupPipeline("./assets/shaders/triangle/compiled/vert.spv", "./assets/shaders/triangle/compiled/frag.spv", swapchain))
 	defer pipeline.Destroy()
 
+	for i := range yst.MaxFramesInFlight {
+		ubuf, err := yst.NewUniformBuffer(renderer)
+		check(err)
+
+		renderer.Ubuffers[i] = *ubuf
+	}
+	defer func() {
+		for _, b := range renderer.Ubuffers {
+			b.Destroy()
+		}
+	}()
+
 	check(renderer.SetupRenderer(window))
 	defer renderer.Destroy()
 

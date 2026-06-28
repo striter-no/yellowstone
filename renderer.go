@@ -3,9 +3,11 @@ package yellowstone
 import (
 	"fmt"
 	"log"
+	"unsafe"
 
 	"github.com/bbredesen/go-vk"
 	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/go-gl/mathgl/mgl32"
 )
 
 const MaxFramesInFlight = 2
@@ -15,8 +17,9 @@ type Renderer struct {
 	Pipeline  *Pipeline
 	Device    *VulkanDevice
 
-	Vbuffer VertexBuffer
-	Ibuffer IndexBuffer
+	Vbuffer  VertexBuffer
+	Ibuffer  IndexBuffer
+	Ubuffers [MaxFramesInFlight]UniformBuffer
 
 	// -- private
 	commandPool         vk.CommandPool
@@ -26,9 +29,21 @@ type Renderer struct {
 	frames       [MaxFramesInFlight]FrameData
 	currentFrame int
 	fbResized    bool
+
+	descriptorPool vk.DescriptorPool
+	descriptorSets []vk.DescriptorSet
+
+	ticks int64
 }
 
 func (r *Renderer) SetupRenderer(w *Window) error {
+	if err := r.createDescriptorPool(); err != nil {
+		return fmt.Errorf("Failed to create descriptor pool: %w", err)
+	}
+
+	if err := r.createDescriptorSets(); err != nil {
+		return fmt.Errorf("Failed to create descriptor sets: %w", err)
+	}
 
 	if err := r.createFramebuffers(); err != nil {
 		return fmt.Errorf("Failed to create framebuffers: %w", err)
@@ -113,6 +128,15 @@ func (r *Renderer) recordCommandBuffer(
 	vk.CmdBindVertexBuffers(cb, 0, vBuffers, offsets)
 	vk.CmdBindIndexBuffer(cb, r.Ibuffer.buffer, 0, vk.INDEX_TYPE_UINT16)
 
+	vk.CmdBindDescriptorSets(
+		cb,
+		vk.PIPELINE_BIND_POINT_GRAPHICS,
+		r.Pipeline.layout,
+		0,
+		[]vk.DescriptorSet{r.descriptorSets[r.currentFrame]},
+		nil,
+	)
+
 	vk.CmdDrawIndexed(cb, uint32(len(r.Ibuffer.indices)), 1, 0, 0, 0)
 
 	vk.CmdEndRenderPass(cb)
@@ -180,6 +204,65 @@ func (r *Renderer) createSyncObjects() error {
 	return nil
 }
 
+func (r *Renderer) createDescriptorPool() error {
+	poolSize := vk.DescriptorPoolSize{
+		Typ:             vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		DescriptorCount: MaxFramesInFlight,
+	}
+
+	poolInfo := vk.DescriptorPoolCreateInfo{
+		PPoolSizes: []vk.DescriptorPoolSize{poolSize},
+		MaxSets:    MaxFramesInFlight,
+	}
+
+	pool, err := vk.CreateDescriptorPool(r.Device.logical, &poolInfo, nil)
+	if err != nil {
+		return err
+	}
+
+	r.descriptorPool = pool
+	return nil
+}
+
+func (r *Renderer) createDescriptorSets() error {
+	layouts := make([]vk.DescriptorSetLayout, MaxFramesInFlight)
+	for i := range MaxFramesInFlight {
+		layouts[i] = r.Pipeline.descrLayout
+	}
+
+	allocInfo := vk.DescriptorSetAllocateInfo{
+		DescriptorPool: r.descriptorPool,
+		PSetLayouts:    layouts[:],
+	}
+
+	sets, err := vk.AllocateDescriptorSets(r.Device.logical, &allocInfo)
+	if err != nil {
+		return err
+	}
+
+	r.descriptorSets = sets
+
+	for i := range MaxFramesInFlight {
+		bufferInfo := vk.DescriptorBufferInfo{
+			Buffer: r.Ubuffers[i].buffer,
+			Offset: 0,
+			Rang:   vk.DeviceSize(unsafe.Sizeof(UniformBufferObject{})),
+		}
+
+		descriptorWrite := vk.WriteDescriptorSet{
+			DstSet:          r.descriptorSets[i],
+			DstBinding:      0,
+			DstArrayElement: 0,
+			DescriptorType:  vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			PBufferInfo:     []vk.DescriptorBufferInfo{bufferInfo},
+		}
+
+		vk.UpdateDescriptorSets(r.Device.logical, []vk.WriteDescriptorSet{descriptorWrite}, nil)
+	}
+
+	return nil
+}
+
 func (r *Renderer) recreateSwapChain() error {
 	w, h := r.Device.Window.glfwWindow.GetFramebufferSize()
 	for w == 0 || h == 0 {
@@ -208,6 +291,32 @@ func (r *Renderer) recreateSwapChain() error {
 	return nil
 }
 
+func (r *Renderer) updateUniformBuffer(currentImage int) error {
+	ubo := UniformBufferObject{}
+
+	angle := mgl32.DegToRad(20.0) * float32(r.ticks) * 0.01
+	axis := mgl32.Vec3{0.0, 0.0, 1.0}
+
+	ubo.Model = mgl32.HomogRotate3D(angle, axis)
+
+	eye := mgl32.Vec3{2.0, 2.0, 2.0}
+	center := mgl32.Vec3{0.0, 0.0, 0.0}
+	up := mgl32.Vec3{0.0, 0.0, 1.0} // Z is up
+
+	ubo.View = mgl32.LookAtV(eye, center, up)
+
+	fovy := mgl32.DegToRad(45.0)
+	aspect := float32(r.Device.Window.Width) / float32(r.Device.Window.Height)
+	near := float32(0.1)
+	far := float32(10.0)
+
+	ubo.Proj = mgl32.Perspective(fovy, aspect, near, far)
+	ubo.Proj[5] *= -1.0
+
+	r.Ubuffers[currentImage].Fill(&ubo)
+	return nil
+}
+
 func (r *Renderer) DrawFrame() error {
 	frame := &r.frames[r.currentFrame]
 
@@ -233,6 +342,10 @@ func (r *Renderer) DrawFrame() error {
 		} else if !ok || (ok && res != vk.SUBOPTIMAL_KHR) {
 			return fmt.Errorf("AcquireNextImageKHR failed: %w", err)
 		}
+	}
+
+	if err := r.updateUniformBuffer(r.currentFrame); err != nil {
+		return fmt.Errorf("updateUniformBuffer failed: %w", err)
 	}
 
 	if err := vk.ResetFences(r.Device.logical, []vk.Fence{frame.InFlightFence}); err != nil {
@@ -291,6 +404,7 @@ func (r *Renderer) DrawFrame() error {
 	}
 
 	r.currentFrame = (r.currentFrame + 1) % MaxFramesInFlight
+	r.ticks++
 	return nil
 }
 
@@ -310,6 +424,8 @@ func (r *Renderer) cleanupSwapChain() {
 
 func (r *Renderer) Destroy() {
 	r.cleanupSwapChain()
+
+	vk.DestroyDescriptorPool(r.Device.logical, r.descriptorPool, nil)
 
 	for _, f := range r.frames {
 		f.Destroy(r.Device.logical)
