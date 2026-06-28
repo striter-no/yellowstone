@@ -41,7 +41,7 @@ func main() {
 
 	vdev := &yst.VulkanDevice{
 		Window:           window,
-		EnableValidation: true,
+		EnableValidation: false,
 	}
 
 	swapchain := &yst.Swapchain{

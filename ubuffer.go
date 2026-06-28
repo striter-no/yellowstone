@@ -43,13 +43,8 @@ func NewUniformBuffer(renderer *Renderer) (*UniformBuffer, error) {
 
 func (ub *UniformBuffer) Fill(ubo *UniformBufferObject) {
 	bytes := getUBOBytes(ubo)
-	n := unsafe.Sizeof(UniformBufferObject{})
-
-	mappedMemory := unsafe.Slice(ub.data, n)
-	indexDataPtr := (*byte)(unsafe.Pointer(&bytes[0]))
-	sourceData := unsafe.Slice(indexDataPtr, n)
-
-	copy(mappedMemory, sourceData)
+	mapped := unsafe.Slice(ub.data, len(bytes))
+	copy(mapped, bytes)
 }
 
 func (ub *UniformBuffer) Destroy() {

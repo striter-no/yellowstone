@@ -6,7 +6,6 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	"github.com/bbredesen/go-vk"
 	"github.com/striter-no/yellowstone/internal"
@@ -128,16 +127,17 @@ func (d *VulkanDevice) createLogicalDevice(neededExtensions []string, surface vk
 		SamplerAnisotropy: true,
 	}
 
-	features12 := vk.PhysicalDeviceVulkan12Features{
-		ScalarBlockLayout: true,
-	}
+	// features12 := vk.PhysicalDeviceVulkan12Features{
+	// 	ScalarBlockLayout: true,
+	// }
 
+	// features12Ptr := features12.Vulkanize()
 	createInfo := vk.DeviceCreateInfo{
 		PQueueCreateInfos:       queueCreateInfos,
 		PEnabledFeatures:        &deviceFeatures,
 		PpEnabledLayerNames:     layerNames,
 		PpEnabledExtensionNames: neededExtensions,
-		PNext:                   unsafe.Pointer(features12.Vulkanize()),
+		// PNext:                   unsafe.Pointer(features12Ptr),
 	}
 
 	dev, err := vk.CreateDevice(d.physical, &createInfo, nil)
@@ -154,6 +154,11 @@ func (d *VulkanDevice) createLogicalDevice(neededExtensions []string, surface vk
 
 func (d *VulkanDevice) pickPhysicalDevice(neededExtensions []string, surface vk.SurfaceKHR) error {
 	devs, err := vk.EnumeratePhysicalDevices(d.instance)
+	log.Printf("EnumeratePhysicalDevices: count=%d, err=%v", len(devs), err)
+	for i, pd := range devs {
+		props := vk.GetPhysicalDeviceProperties(pd)
+		log.Printf("  [%d] %s", i, props.DeviceName)
+	}
 	if err != nil {
 		return err
 	}
@@ -199,6 +204,7 @@ func (d *VulkanDevice) checkDeviceExtensionSupport(neededDeviceExtensions []stri
 	props, err := vk.EnumerateDeviceExtensionProperties(dev, "")
 	if err != nil {
 		log.Printf("checkDeviceExtensionSupport: vk.EnumerateDeviceExtensionProperties(): error: %v", err)
+		return false
 	}
 
 	c := 0

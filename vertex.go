@@ -40,7 +40,7 @@ func (v *Vertex) getAttributeDescriptions() []vk.VertexInputAttributeDescription
 		{
 			Binding:  0,
 			Location: 2,
-			Format:   vk.FORMAT_R32G32B32_SFLOAT,
+			Format:   vk.FORMAT_R32G32_SFLOAT,
 			Offset:   uint32(unsafe.Offsetof(Vertex{}.UV)),
 		},
 	}
