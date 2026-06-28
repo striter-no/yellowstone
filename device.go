@@ -77,11 +77,16 @@ func (d *VulkanDevice) SetupVulkanDevice(
 		PpEnabledLayerNames:     layerNames,
 	}
 
+	// log.Printf("Before CreateInstance: icInfo=%+v", icInfo)
 	instance, err := vk.CreateInstance(&icInfo, nil)
+	// log.Printf("After CreateInstance: instance=%#x err=%v (type=%T)", uint64(instance), err, err)
 	if err != vk.SUCCESS {
 		return fmt.Errorf("vk.CreateInstance() failed: %w", err)
 	}
 	d.instance = instance
+
+	devs, err := vk.EnumeratePhysicalDevices(d.instance)
+	log.Printf("First EnumeratePhysicalDevices: count=%d err=%v", len(devs), err)
 
 	if err := d.Window.createSurface(d.instance); err != nil {
 		return fmt.Errorf("Failed to create surface")
