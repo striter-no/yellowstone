@@ -102,7 +102,7 @@ func NewTextureFromFile(path string, renderer *Renderer) (*Texture, error) {
 	vk.DestroyBuffer(renderer.Device.logical, stagingBuf, nil)
 	vk.FreeMemory(renderer.Device.logical, stagingMem, nil)
 
-	view, err := createImageView(img, vk.FORMAT_R8G8B8A8_SRGB, renderer.Device)
+	view, err := createImageView(img, vk.FORMAT_R8G8B8A8_SRGB, vk.IMAGE_ASPECT_COLOR_BIT, renderer.Device)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (t *Texture) Destroy() {
 	vk.FreeMemory(t.dev.logical, t.textureMem, nil)
 }
 
-func transitionImageLayout(image vk.Image, _ vk.Format, oldLayout, newLayout vk.ImageLayout, cpool vk.CommandPool, dev *VulkanDevice) error {
+func transitionImageLayout(image vk.Image, format vk.Format, oldLayout, newLayout vk.ImageLayout, cpool vk.CommandPool, dev *VulkanDevice) error {
 	cb, err := beginSingleTimeCommands(cpool, dev)
 	if err != nil {
 		return err
@@ -142,6 +142,16 @@ func transitionImageLayout(image vk.Image, _ vk.Format, oldLayout, newLayout vk.
 		},
 	}
 
+	if newLayout == vk.IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL {
+		barrier.SubresourceRange.AspectMask = vk.IMAGE_ASPECT_DEPTH_BIT
+
+		if hasStencilComponent(format) {
+			barrier.SubresourceRange.AspectMask |= vk.IMAGE_ASPECT_STENCIL_BIT
+		}
+	} else {
+		barrier.SubresourceRange.AspectMask = vk.IMAGE_ASPECT_COLOR_BIT
+	}
+
 	var sourceStage, destinationStage vk.PipelineStageFlags
 	if oldLayout == vk.IMAGE_LAYOUT_UNDEFINED && newLayout == vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL {
 		barrier.SrcAccessMask = 0
@@ -155,6 +165,12 @@ func transitionImageLayout(image vk.Image, _ vk.Format, oldLayout, newLayout vk.
 
 		sourceStage = vk.PIPELINE_STAGE_TRANSFER_BIT
 		destinationStage = vk.PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+	} else if oldLayout == vk.IMAGE_LAYOUT_UNDEFINED && newLayout == vk.IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL {
+		barrier.SrcAccessMask = 0
+		barrier.DstAccessMask = vk.ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | vk.ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+
+		sourceStage = vk.PIPELINE_STAGE_TOP_OF_PIPE_BIT
+		destinationStage = vk.PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
 	} else {
 		return errors.New("Unsupported layout transition")
 	}
@@ -200,13 +216,13 @@ func copyBufferToImage(buffer vk.Buffer, image vk.Image, width, height int, cpoo
 	return endSingleTimeCommands(cb, cpool, dev)
 }
 
-func createImageView(image vk.Image, format vk.Format, dev *VulkanDevice) (vk.ImageView, error) {
+func createImageView(image vk.Image, format vk.Format, aspectFlags vk.ImageAspectFlags, dev *VulkanDevice) (vk.ImageView, error) {
 	viewInfo := vk.ImageViewCreateInfo{
 		Image:    image,
 		Format:   format,
 		ViewType: vk.IMAGE_VIEW_TYPE_2D,
 		SubresourceRange: vk.ImageSubresourceRange{
-			AspectMask:     vk.IMAGE_ASPECT_COLOR_BIT,
+			AspectMask:     aspectFlags,
 			BaseMipLevel:   0,
 			LevelCount:     1,
 			BaseArrayLayer: 0,

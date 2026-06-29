@@ -8,14 +8,14 @@ import (
 )
 
 type IndexBuffer struct {
-	indices []uint16
+	indices []uint32
 	buffer  vk.Buffer
 	memory  vk.DeviceMemory
 
 	dev *VulkanDevice
 }
 
-func NewIndexBuffer(data []uint16, renderer *Renderer) (*IndexBuffer, error) {
+func NewIndexBuffer(data []uint32, renderer *Renderer) (*IndexBuffer, error) {
 	dataBytesN := uint64(unsafe.Sizeof(data[0])) * uint64(len(data))
 
 	stagingBuf, stagingBufMem, err := createBuffer(

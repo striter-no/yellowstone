@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"runtime/debug"
 
-	"github.com/go-gl/mathgl/mgl32"
 	yst "github.com/striter-no/yellowstone"
+	assets "github.com/striter-no/yellowstone/loader"
 )
 
 func main() {
@@ -14,14 +14,32 @@ func main() {
 	debug.SetGCPercent(-1)
 
 	// -- data setup
-	verts := []yst.Vertex{
-		{Pos: mgl32.Vec2{-0.5, -0.5}, Color: mgl32.Vec3{1, 0, 0}, UV: mgl32.Vec2{1, 0}},
-		{Pos: mgl32.Vec2{0.5, -0.5}, Color: mgl32.Vec3{0, 1, 0}, UV: mgl32.Vec2{0, 0}},
-		{Pos: mgl32.Vec2{0.5, 0.5}, Color: mgl32.Vec3{0, 0, 1}, UV: mgl32.Vec2{0, 1}},
-		{Pos: mgl32.Vec2{-0.5, 0.5}, Color: mgl32.Vec3{1, 1, 1}, UV: mgl32.Vec2{1, 1}},
-	}
+	meshes, err := assets.LoadOBJ("./assets/meshes/viking_room.obj")
+	check(err)
 
-	indices := []uint16{0, 1, 2, 2, 3, 0}
+	var verts []yst.Vertex
+	var indices []uint32
+
+	uniqueVertices := make(map[yst.Vertex]uint32)
+
+	for _, m := range meshes.Meshes {
+		for _, v := range m {
+			vertex := yst.Vertex{
+				Pos:   v.Pos,
+				Color: v.Color,
+				UV:    v.UV,
+			}
+
+			if index, exists := uniqueVertices[vertex]; exists {
+				indices = append(indices, index)
+			} else {
+				newIndex := uint32(len(verts))
+				uniqueVertices[vertex] = newIndex
+				verts = append(verts, vertex)
+				indices = append(indices, newIndex)
+			}
+		}
+	}
 
 	// -- rendering
 	app := yst.AppInfo{
@@ -41,7 +59,7 @@ func main() {
 
 	vdev := &yst.VulkanDevice{
 		Window:           window,
-		EnableValidation: false,
+		EnableValidation: true,
 	}
 
 	swapchain := &yst.Swapchain{
@@ -96,7 +114,7 @@ func main() {
 	check(renderer.SetupRenderer(window))
 	defer renderer.Destroy()
 
-	tex, err := yst.NewTextureFromFile("./assets/textures/statue.jpg", renderer)
+	tex, err := yst.NewTextureFromFile("./assets/textures/viking_room.png", renderer)
 	check(err)
 	defer tex.Destroy()
 

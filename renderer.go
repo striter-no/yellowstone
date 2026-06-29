@@ -36,16 +36,22 @@ type Renderer struct {
 	descriptorPool vk.DescriptorPool
 	descriptorSets []vk.DescriptorSet
 
-	ticks int64
+	depthTexture Texture
+	ticks        int64
 }
 
 func (r *Renderer) SetupRenderer(w *Window) error {
-	if err := r.createFramebuffers(); err != nil {
-		return fmt.Errorf("Failed to create framebuffers: %w", err)
-	}
 
 	if err := r.createCommandPool(w); err != nil {
 		return fmt.Errorf("Failed to create command pool: %w", err)
+	}
+
+	if err := r.createDepthResources(); err != nil {
+		return fmt.Errorf("Failed to create depth resources: %w", err)
+	}
+
+	if err := r.createFramebuffers(); err != nil {
+		return fmt.Errorf("Failed to create framebuffers: %w", err)
 	}
 
 	if err := r.createSyncObjects(); err != nil {
@@ -94,11 +100,15 @@ func (r *Renderer) recordCommandBuffer(
 		return err
 	}
 
-	clearColor := vk.ClearValue{
-		Color: vk.ClearColorValue{
-			TypeFloat32: [4]float32{0.0, 0.0, 0.0, 1.0},
-		},
-	}
+	clearValueColor := vk.ClearValue{}
+	clearValueColor.AsColor(vk.ClearColorValue{
+		TypeFloat32: [4]float32{0.0, 0.0, 0.0, 1.0},
+	})
+
+	clearValueDepth := vk.ClearValue{}
+	clearValueDepth.AsDepthStencil(vk.ClearDepthStencilValue{
+		Depth: 1, Stencil: 0,
+	})
 
 	renderPassInfo := vk.RenderPassBeginInfo{
 		RenderPass:  r.Pipeline.renderPass,
@@ -107,7 +117,7 @@ func (r *Renderer) recordCommandBuffer(
 			Offset: vk.Offset2D{X: 0, Y: 0},
 			Extent: r.SwapChain.extent,
 		},
-		PClearValues: []vk.ClearValue{clearColor},
+		PClearValues: []vk.ClearValue{clearValueColor, clearValueDepth},
 	}
 
 	vk.CmdBeginRenderPass(cb, &renderPassInfo, vk.SUBPASS_CONTENTS_INLINE)
@@ -132,7 +142,7 @@ func (r *Renderer) recordCommandBuffer(
 	vBuffers := []vk.Buffer{r.Vbuffer.buffer}
 	offsets := []vk.DeviceSize{0}
 	vk.CmdBindVertexBuffers(cb, 0, vBuffers, offsets)
-	vk.CmdBindIndexBuffer(cb, r.Ibuffer.buffer, 0, vk.INDEX_TYPE_UINT16)
+	vk.CmdBindIndexBuffer(cb, r.Ibuffer.buffer, 0, vk.INDEX_TYPE_UINT32)
 
 	vk.CmdBindDescriptorSets(
 		cb,
@@ -149,6 +159,51 @@ func (r *Renderer) recordCommandBuffer(
 
 	if err := vk.EndCommandBuffer(cb); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (r *Renderer) createDepthResources() error {
+	depthFormat, err := findDepthFormat(r.Device)
+	if err != nil {
+		return err
+	}
+
+	img, imgMem, err := createImage(
+		uint(r.SwapChain.extent.Width),
+		uint(r.SwapChain.extent.Height),
+		depthFormat,
+		vk.IMAGE_TILING_OPTIMAL,
+		vk.IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		r.Device,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	imgView, err := createImageView(img, depthFormat, vk.IMAGE_ASPECT_DEPTH_BIT, r.Device)
+	if err != nil {
+		return err
+	}
+
+	if err := transitionImageLayout(
+		img, depthFormat,
+		vk.IMAGE_LAYOUT_UNDEFINED,
+		vk.IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		r.commandPool,
+		r.Device,
+	); err != nil {
+		return err
+	}
+
+	r.depthTexture = Texture{
+		textureMem: imgMem,
+		VkTexture:  img,
+		View:       imgView,
+		dev:        r.Device,
 	}
 
 	return nil
@@ -175,7 +230,7 @@ func (r *Renderer) createFramebuffers() error {
 	r.framebuffers = make([]vk.Framebuffer, len(r.SwapChain.imageViews))
 
 	for i, v := range r.SwapChain.imageViews {
-		attachments := []vk.ImageView{v}
+		attachments := []vk.ImageView{v, r.depthTexture.View}
 
 		framebufferInfo := vk.FramebufferCreateInfo{
 			RenderPass:   r.Pipeline.renderPass,
@@ -303,7 +358,12 @@ func (r *Renderer) recreateSwapChain() error {
 	r.cleanupSwapChain()
 
 	// recreating
+
 	if err := r.SwapChain.SetupSwapchain(r.Device.Window); err != nil {
+		return err
+	}
+
+	if err := r.createDepthResources(); err != nil {
 		return err
 	}
 
@@ -321,7 +381,7 @@ func (r *Renderer) recreateSwapChain() error {
 func (r *Renderer) updateUniformBuffer(currentImage int) error {
 	ubo := UniformBufferObject{}
 
-	angle := mgl32.DegToRad(20.0) * float32(r.ticks) * 0.01
+	angle := mgl32.DegToRad(20.0) * float32(r.ticks) * 0.001
 	axis := mgl32.Vec3{0.0, 0.0, 1.0}
 
 	ubo.Model = mgl32.HomogRotate3D(angle, axis)
@@ -436,6 +496,8 @@ func (r *Renderer) DrawFrame() error {
 }
 
 func (r *Renderer) cleanupSwapChain() {
+	r.depthTexture.Destroy()
+
 	for _, fb := range r.framebuffers {
 		vk.DestroyFramebuffer(r.Device.logical, fb, nil)
 	}

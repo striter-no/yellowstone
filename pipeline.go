@@ -48,22 +48,44 @@ func (p *Pipeline) createRenderPass(imgLayout vk.Format, logicalDev vk.Device) e
 		Layout:     vk.IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 	}
 
+	depthFormat, err := findDepthFormat(p.Device)
+	if err != nil {
+		return err
+	}
+
+	depthAttachment := vk.AttachmentDescription{
+		Format:         depthFormat,
+		Samples:        vk.SAMPLE_COUNT_1_BIT,
+		LoadOp:         vk.ATTACHMENT_LOAD_OP_CLEAR,
+		StoreOp:        vk.ATTACHMENT_STORE_OP_DONT_CARE,
+		StencilLoadOp:  vk.ATTACHMENT_LOAD_OP_DONT_CARE,
+		StencilStoreOp: vk.ATTACHMENT_STORE_OP_DONT_CARE,
+		InitialLayout:  vk.IMAGE_LAYOUT_UNDEFINED,
+		FinalLayout:    vk.IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+	}
+
+	depthAttachmentRef := vk.AttachmentReference{
+		Attachment: 1,
+		Layout:     vk.IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+	}
+
 	subpass := vk.SubpassDescription{
-		PipelineBindPoint: vk.PIPELINE_BIND_POINT_GRAPHICS,
-		PColorAttachments: []vk.AttachmentReference{colorAttachmentRef},
+		PipelineBindPoint:       vk.PIPELINE_BIND_POINT_GRAPHICS,
+		PColorAttachments:       []vk.AttachmentReference{colorAttachmentRef},
+		PDepthStencilAttachment: &depthAttachmentRef,
 	}
 
 	dependency := vk.SubpassDependency{
 		SrcSubpass:    vk.SUBPASS_EXTERNAL,
 		DstSubpass:    0,
-		SrcStageMask:  vk.PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		SrcAccessMask: 0,
-		DstStageMask:  vk.PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		DstAccessMask: vk.ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		SrcStageMask:  vk.PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | vk.PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+		SrcAccessMask: vk.ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+		DstStageMask:  vk.PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | vk.PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+		DstAccessMask: vk.ACCESS_COLOR_ATTACHMENT_WRITE_BIT | vk.ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
 	}
 
 	renderPassInfo := vk.RenderPassCreateInfo{
-		PAttachments:  []vk.AttachmentDescription{colorAttachment},
+		PAttachments:  []vk.AttachmentDescription{colorAttachment, depthAttachment},
 		PSubpasses:    []vk.SubpassDescription{subpass},
 		PDependencies: []vk.SubpassDependency{dependency},
 	}
@@ -229,8 +251,19 @@ func (p *Pipeline) createGraphicsPipeline(vertexCompiled, fragmentCompiled strin
 
 	p.layout = pipelineLayout
 
+	depthStencil := vk.PipelineDepthStencilStateCreateInfo{
+		DepthTestEnable:       true,
+		DepthWriteEnable:      true,
+		DepthCompareOp:        vk.COMPARE_OP_LESS,
+		DepthBoundsTestEnable: false,
+		MinDepthBounds:        0,
+		MaxDepthBounds:        1,
+		StencilTestEnable:     false,
+	}
+
 	pipelineInfo := vk.GraphicsPipelineCreateInfo{
 		PStages:             shaderStages,
+		PDepthStencilState:  &depthStencil,
 		PVertexInputState:   &vertexInputInfo,
 		PInputAssemblyState: &inputAssembly,
 		PViewportState:      &viewportState,

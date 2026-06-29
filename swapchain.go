@@ -108,7 +108,7 @@ func (s *Swapchain) createImageViews(logicalDev vk.Device) error {
 		// 	return err
 		// }
 
-		view, err := createImageView(s.images[i], s.imageFormat, s.Device)
+		view, err := createImageView(s.images[i], s.imageFormat, vk.IMAGE_ASPECT_COLOR_BIT, s.Device)
 		if err != nil {
 			return err
 		}

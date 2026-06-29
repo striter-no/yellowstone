@@ -8,7 +8,7 @@ import (
 )
 
 type Vertex struct {
-	Pos   mgl32.Vec2
+	Pos   mgl32.Vec3
 	Color mgl32.Vec3
 	UV    mgl32.Vec2
 }
@@ -28,7 +28,7 @@ func (v *Vertex) getAttributeDescriptions() []vk.VertexInputAttributeDescription
 		{
 			Binding:  0,
 			Location: 0,
-			Format:   vk.FORMAT_R32G32_SFLOAT,
+			Format:   vk.FORMAT_R32G32B32_SFLOAT,
 			Offset:   uint32(unsafe.Offsetof(Vertex{}.Pos)),
 		},
 		{
